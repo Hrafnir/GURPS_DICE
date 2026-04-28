@@ -1,7 +1,7 @@
 /*
   Fil: styles.css
-  Formål: Visuell utforming for GURPS Dice Assistant med responsivt paneloppsett.
-  Versjon: 0.1.0
+  Formål: Visuell utforming for GURPS Dice Assistant med responsivt paneloppsett og animerte terninger.
+  Versjon: 0.2.0
 */
 
 :root {
@@ -382,6 +382,140 @@ select:focus {
   color: var(--color-text-muted);
 }
 
+.dice-stage {
+  display: grid;
+  gap: 0.85rem;
+}
+
+.dice-stage-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
+
+.dice-stage-header .result-title {
+  margin: 0;
+}
+
+.dice-progress-label {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 4rem;
+  padding: 0.3rem 0.7rem;
+  color: var(--color-secondary);
+  background: #f3f4f6;
+  border: 1px solid var(--color-border);
+  border-radius: 999px;
+  font-size: 0.85rem;
+  font-weight: 900;
+}
+
+.dice-progress-track {
+  width: 100%;
+  height: 0.55rem;
+  overflow: hidden;
+  background: var(--color-panel-muted);
+  border-radius: 999px;
+}
+
+.dice-progress-bar {
+  width: var(--dice-progress, 0%);
+  height: 100%;
+  background: linear-gradient(90deg, var(--color-primary), #f59e0b);
+  border-radius: 999px;
+  transition: width 90ms linear;
+}
+
+.dice-row-wrap {
+  display: grid;
+  gap: 0.65rem;
+  margin-bottom: var(--space-3);
+}
+
+.dice-row-label {
+  color: var(--color-text-muted);
+  font-size: 0.85rem;
+  font-weight: 900;
+}
+
+.dice-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.65rem;
+}
+
+.dice-total {
+  color: var(--color-text-muted);
+  font-weight: 900;
+}
+
+.die-face {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 3.35rem;
+  height: 3.35rem;
+  color: var(--die-color, var(--color-text));
+  background:
+    radial-gradient(circle at 30% 25%, rgba(255, 255, 255, 0.95), transparent 2rem),
+    var(--die-bg, #f9fafb);
+  border: 2px solid var(--die-border, var(--color-border));
+  border-radius: 0.9rem;
+  box-shadow:
+    inset 0 -0.3rem 0.6rem rgba(0, 0, 0, 0.06),
+    0 10px 24px var(--die-glow, rgba(17, 24, 39, 0.14));
+  font-size: 2rem;
+  font-weight: 900;
+  line-height: 1;
+  user-select: none;
+  transform:
+    rotate(var(--die-rotate, 0deg))
+    scale(var(--die-scale, 1))
+    translateY(var(--die-translate-y, 0));
+  transition:
+    transform 90ms linear,
+    box-shadow 160ms ease,
+    border-color 160ms ease;
+}
+
+.die-face.is-rolling {
+  animation:
+    die-roll-wobble 220ms ease-in-out infinite,
+    die-roll-glow 700ms ease-in-out infinite alternate;
+}
+
+.die-success {
+  --die-bg: #ecfdf5;
+  --die-border: #10b981;
+  --die-color: #065f46;
+  --die-glow: rgba(16, 185, 129, 0.2);
+}
+
+.die-failure {
+  --die-bg: #fef2f2;
+  --die-border: #ef4444;
+  --die-color: #991b1b;
+  --die-glow: rgba(239, 68, 68, 0.22);
+}
+
+.die-warning {
+  --die-bg: #fffbeb;
+  --die-border: #f59e0b;
+  --die-color: #92400e;
+  --die-glow: rgba(245, 158, 11, 0.24);
+}
+
+.die-neutral {
+  --die-bg: #f9fafb;
+  --die-border: #d1d5db;
+  --die-color: #111827;
+  --die-glow: rgba(17, 24, 39, 0.14);
+}
+
 .roll-log-list {
   display: grid;
   gap: var(--space-2);
@@ -408,6 +542,10 @@ select:focus {
   border-left-color: var(--color-danger);
 }
 
+.roll-log-list li.damage {
+  border-left-color: var(--color-warning);
+}
+
 .log-entry-title {
   display: flex;
   justify-content: space-between;
@@ -430,6 +568,43 @@ select:focus {
 
 .app-footer p {
   margin-bottom: 0;
+}
+
+@keyframes die-roll-wobble {
+  0% {
+    transform:
+      rotate(calc(var(--die-rotate, 0deg) - 8deg))
+      scale(var(--die-scale, 1))
+      translateY(calc(var(--die-translate-y, 0px) - 2px));
+  }
+
+  50% {
+    transform:
+      rotate(calc(var(--die-rotate, 0deg) + 8deg))
+      scale(calc(var(--die-scale, 1) + 0.04))
+      translateY(calc(var(--die-translate-y, 0px) + 2px));
+  }
+
+  100% {
+    transform:
+      rotate(calc(var(--die-rotate, 0deg) - 8deg))
+      scale(var(--die-scale, 1))
+      translateY(calc(var(--die-translate-y, 0px) - 2px));
+  }
+}
+
+@keyframes die-roll-glow {
+  from {
+    box-shadow:
+      inset 0 -0.3rem 0.6rem rgba(0, 0, 0, 0.06),
+      0 8px 18px var(--die-glow, rgba(17, 24, 39, 0.14));
+  }
+
+  to {
+    box-shadow:
+      inset 0 -0.3rem 0.6rem rgba(0, 0, 0, 0.06),
+      0 16px 34px var(--die-glow, rgba(17, 24, 39, 0.2));
+  }
 }
 
 @media (max-width: 980px) {
@@ -479,6 +654,28 @@ select:focus {
   .button {
     justify-content: center;
   }
+
+  .die-face {
+    width: 3rem;
+    height: 3rem;
+    font-size: 1.8rem;
+    border-radius: 0.75rem;
+  }
 }
 
-/* Slutt på fil: styles.css | Versjon: 0.1.0 */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+
+  .die-face.is-rolling {
+    animation: none;
+  }
+}
+
+/* Slutt på fil: styles.css | Versjon: 0.2.0 */
