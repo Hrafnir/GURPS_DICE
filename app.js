@@ -1,15 +1,15 @@
 /*
   Fil: app.js
-  Formål: Interaktiv logikk for GURPS Dice Assistant: ferdigheter, modifikatorer, 3d6-kast, criticals, logg, skadekast og animerte terninger.
-  Versjon: 0.2.0
+  Formål: Interaktiv logikk for GURPS Dice Assistant med ferdigheter, modifikatorer, 3d6-kast, criticals, logg, skade og CSS-styrte terninger.
+  Versjon: 0.3.0
 */
 
 (() => {
   "use strict";
 
   const STORAGE_KEYS = {
-    skills: "gurps-dice-assistant.skills.v0.2.0",
-    log: "gurps-dice-assistant.roll-log.v0.2.0"
+    skills: "gurps-dice-assistant.skills.v0.3.0",
+    log: "gurps-dice-assistant.roll-log.v0.3.0"
   };
 
   const DEFAULT_SKILLS = [
@@ -147,9 +147,7 @@
     });
 
     dom.rollTypeSelect.addEventListener("change", updateEffectiveTarget);
-
     dom.addSkillButton.addEventListener("click", addSkillFromForm);
-
     dom.modifierList.addEventListener("change", updateEffectiveTarget);
 
     [
@@ -187,6 +185,7 @@
 
     dom.manualRollButton.addEventListener("click", () => {
       dom.manualRollControls.hidden = !dom.manualRollControls.hidden;
+
       if (!dom.manualRollControls.hidden) {
         dom.manualRollInput.focus();
       }
@@ -352,11 +351,9 @@
   function syncSelectedSkillLevel() {
     const selectedSkill = getSelectedSkill();
 
-    if (!selectedSkill) {
-      return;
+    if (selectedSkill) {
+      dom.skillLevelInput.value = String(selectedSkill.level);
     }
-
-    dom.skillLevelInput.value = String(selectedSkill.level);
   }
 
   function updateSelectedSkillLevel() {
@@ -419,10 +416,6 @@
     return [...toggledModifiers, ...manualModifiers];
   }
 
-  function getModifierTotal() {
-    return getModifierBreakdown().reduce((sum, modifier) => sum + modifier.value, 0);
-  }
-
   function updateRangeSpeedModifier() {
     const distance = Math.max(0, readNumber(dom.distanceInput, 0));
     const speed = Math.max(0, readNumber(dom.speedInput, 0));
@@ -451,7 +444,7 @@
 
   function updateEffectiveTarget() {
     const baseSkillLevel = clampInteger(readNumber(dom.skillLevelInput, 12), 3, 30, 12);
-    const modifierTotal = getModifierTotal();
+    const modifierTotal = getModifierBreakdown().reduce((sum, modifier) => sum + modifier.value, 0);
     const effectiveTarget = baseSkillLevel + modifierTotal;
 
     dom.modifierTotalLabel.textContent = `Total: ${formatSignedNumber(modifierTotal)}`;
@@ -602,8 +595,14 @@
       ? `Manuelt resultat: ${rollData.total}`
       : `Terninger: ${rollData.dice.join(" + ")} = ${rollData.total}`;
 
+    const diceHtml = rollData.isManual
+      ? ""
+      : buildDiceRowHtml(rollData.dice, rollData.result.tone, {
+          label: "Kastede terninger"
+        });
+
     dom.rollResultCard.innerHTML = `
-      ${buildDiceRowHtml(rollData.dice, rollData.result.tone, { label: "Kastede terninger" })}
+      ${diceHtml}
 
       <h3 class="result-title ${rollData.result.tone}">
         ${escapeHtml(rollData.result.label)}
@@ -799,43 +798,22 @@
       : 100;
 
     container.innerHTML = `
-      <div style="display:grid; gap:0.85rem;">
-        <div style="display:flex; justify-content:space-between; align-items:center; gap:0.75rem; flex-wrap:wrap;">
-          <h3 class="result-title warning" style="margin:0;">${escapeHtml(options.title || "Kaster terninger ...")}</h3>
-          <span style="
-            display:inline-flex;
-            align-items:center;
-            justify-content:center;
-            min-width:4rem;
-            padding:0.3rem 0.7rem;
-            border-radius:999px;
-            background:#f3f4f6;
-            border:1px solid #d1d5db;
-            font-weight:800;
-            color:#374151;
-            font-size:0.85rem;
-          ">${progressPercent}%</span>
+      <div class="dice-stage">
+        <div class="dice-stage-header">
+          <h3 class="result-title warning">${escapeHtml(options.title || "Kaster terninger ...")}</h3>
+          <span class="dice-progress-label">${progressPercent}%</span>
         </div>
 
-        ${buildDiceRowHtml(dice, "warning", { animated: true, label: "Rullende terninger" })}
+        ${buildDiceRowHtml(dice, "warning", {
+          animated: true,
+          label: "Rullende terninger"
+        })}
 
-        <div style="
-          width:100%;
-          height:0.55rem;
-          background:#e5e7eb;
-          border-radius:999px;
-          overflow:hidden;
-        ">
-          <div style="
-            width:${progressPercent}%;
-            height:100%;
-            background:linear-gradient(90deg, #b91c1c, #f59e0b);
-            border-radius:999px;
-            transition:width 90ms linear;
-          "></div>
+        <div class="dice-progress-track">
+          <div class="dice-progress-bar" style="--dice-progress: ${progressPercent}%;"></div>
         </div>
 
-        <p class="result-comment" style="margin:0;">
+        <p class="result-comment">
           ${escapeHtml(options.description || "Terningene ruller ...")}
         </p>
       </div>
@@ -843,70 +821,38 @@
   }
 
   function buildDiceRowHtml(dice, tone = "neutral", options = {}) {
-    const palette = {
-      neutral: {
-        border: "#d1d5db",
-        bg: "#f9fafb",
-        color: "#111827",
-        glow: "rgba(17, 24, 39, 0.12)"
-      },
-      success: {
-        border: "#10b981",
-        bg: "#ecfdf5",
-        color: "#065f46",
-        glow: "rgba(16, 185, 129, 0.18)"
-      },
-      failure: {
-        border: "#ef4444",
-        bg: "#fef2f2",
-        color: "#991b1b",
-        glow: "rgba(239, 68, 68, 0.18)"
-      },
-      warning: {
-        border: "#f59e0b",
-        bg: "#fffbeb",
-        color: "#92400e",
-        glow: "rgba(245, 158, 11, 0.18)"
-      }
-    };
-
-    const selectedPalette = palette[tone] || palette.neutral;
     const animated = Boolean(options.animated);
 
     const diceHtml = dice
       .map((value, index) => {
         const rotate = animated ? ((index % 2 === 0 ? -1 : 1) * (6 + Math.floor(Math.random() * 10))) : 0;
-        const scale = animated ? (1 + Math.random() * 0.06) : 1;
-        const translateY = animated ? (-2 + Math.floor(Math.random() * 6)) : 0;
+        const scale = animated ? (1 + Math.random() * 0.08) : 1;
+        const translateY = animated ? (-3 + Math.floor(Math.random() * 7)) : 0;
 
         return `
-          <div style="
-            width:3.35rem;
-            height:3.35rem;
-            display:flex;
-            align-items:center;
-            justify-content:center;
-            border-radius:0.9rem;
-            border:2px solid ${selectedPalette.border};
-            background:${selectedPalette.bg};
-            color:${selectedPalette.color};
-            box-shadow:0 8px 22px ${selectedPalette.glow};
-            font-size:2rem;
-            font-weight:900;
-            user-select:none;
-            transform:rotate(${rotate}deg) scale(${scale}) translateY(${translateY}px);
-            transition:transform 90ms linear;
-          ">${DIE_SYMBOLS[value] || "?"}</div>
+          <div
+            class="die-face die-${tone}${animated ? " is-rolling" : ""}"
+            style="
+              --die-rotate: ${rotate}deg;
+              --die-scale: ${scale};
+              --die-translate-y: ${translateY}px;
+            "
+            aria-label="Terning viser ${value}"
+          >
+            ${DIE_SYMBOLS[value] || "?"}
+          </div>
         `;
       })
       .join("");
 
-    const total = dice.length > 1 ? `<div style="font-weight:800; color:#6b7280;">Sum: ${sum(dice)}</div>` : "";
+    const total = dice.length > 1
+      ? `<div class="dice-total">Sum: ${sum(dice)}</div>`
+      : "";
 
     return `
-      <div style="display:grid; gap:0.65rem; margin-bottom:1rem;">
-        ${options.label ? `<div style="font-size:0.85rem; font-weight:800; color:#6b7280;">${escapeHtml(options.label)}</div>` : ""}
-        <div style="display:flex; flex-wrap:wrap; gap:0.65rem; align-items:center;">
+      <div class="dice-row-wrap">
+        ${options.label ? `<div class="dice-row-label">${escapeHtml(options.label)}</div>` : ""}
+        <div class="dice-row">
           ${diceHtml}
         </div>
         ${total}
@@ -1047,4 +993,4 @@
   init();
 })();
 
-/* Slutt på fil: app.js | Versjon: 0.2.0 */
+/* Slutt på fil: app.js | Versjon: 0.3.0 */
