@@ -1,0 +1,315 @@
+<!--
+  Fil: index.html
+  Formål: Hovedstruktur for GURPS terningkast-app med ferdigheter, modifikatorer, treff og skadeflyt.
+  Versjon: 0.1.0
+-->
+
+<!DOCTYPE html>
+<html lang="no">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+  <title>GURPS Dice Assistant</title>
+
+  <meta
+    name="description"
+    content="En nettleserbasert GURPS-app for ferdighetskast, modifikatorer, critical success/failure, treff og skade."
+  />
+
+  <link rel="stylesheet" href="styles.css" />
+</head>
+
+<body>
+  <header class="app-header">
+    <div>
+      <p class="eyebrow">GURPS 4e</p>
+      <h1>Dice Assistant</h1>
+      <p class="app-subtitle">
+        Håndter ferdighetskast, vanskelighetsgrad, treff og skade på ett sted.
+      </p>
+    </div>
+
+    <div class="header-actions">
+      <button id="resetSessionButton" type="button" class="button button-secondary">
+        Nullstill økt
+      </button>
+    </div>
+  </header>
+
+  <main class="app-layout">
+    <section class="panel" aria-labelledby="character-heading">
+      <div class="panel-header">
+        <h2 id="character-heading">Karakter og ferdighet</h2>
+      </div>
+
+      <div class="form-grid">
+        <label class="field">
+          <span>Karakter</span>
+          <input
+            id="characterNameInput"
+            type="text"
+            placeholder="F.eks. Aina"
+            autocomplete="off"
+          />
+        </label>
+
+        <label class="field">
+          <span>Ferdighet</span>
+          <select id="skillSelect">
+            <option value="">Velg ferdighet</option>
+          </select>
+        </label>
+
+        <label class="field">
+          <span>Skill level</span>
+          <input
+            id="skillLevelInput"
+            type="number"
+            min="3"
+            max="30"
+            step="1"
+            value="12"
+          />
+        </label>
+
+        <label class="field">
+          <span>Kasttype</span>
+          <select id="rollTypeSelect">
+            <option value="skill">Vanlig skill roll</option>
+            <option value="attack">Angrep / treff</option>
+            <option value="defense">Forsvar</option>
+            <option value="attribute">Attributt</option>
+          </select>
+        </label>
+      </div>
+
+      <details class="details-block" open>
+        <summary>Legg til ny ferdighet</summary>
+
+        <div class="form-grid">
+          <label class="field">
+            <span>Navn</span>
+            <input
+              id="newSkillNameInput"
+              type="text"
+              placeholder="F.eks. Bow"
+              autocomplete="off"
+            />
+          </label>
+
+          <label class="field">
+            <span>Standardnivå</span>
+            <input
+              id="newSkillLevelInput"
+              type="number"
+              min="3"
+              max="30"
+              step="1"
+              value="12"
+            />
+          </label>
+
+          <button id="addSkillButton" type="button" class="button button-primary">
+            Legg til skill
+          </button>
+        </div>
+      </details>
+    </section>
+
+    <section class="panel" aria-labelledby="modifiers-heading">
+      <div class="panel-header">
+        <h2 id="modifiers-heading">Modifikatorer</h2>
+        <p id="modifierTotalLabel" class="total-pill">Total: 0</p>
+      </div>
+
+      <div class="modifier-list" id="modifierList">
+        <label class="modifier-row">
+          <input type="checkbox" data-modifier-name="Aim" data-modifier-value="1" />
+          <span>Aim</span>
+          <strong>+1</strong>
+        </label>
+
+        <label class="modifier-row">
+          <input type="checkbox" data-modifier-name="All-Out Attack" data-modifier-value="1" />
+          <span>All-Out Attack</span>
+          <strong>+1</strong>
+        </label>
+
+        <label class="modifier-row">
+          <input type="checkbox" data-modifier-name="Target is moving" data-modifier-value="-2" />
+          <span>Mål i bevegelse</span>
+          <strong>-2</strong>
+        </label>
+
+        <label class="modifier-row">
+          <input type="checkbox" data-modifier-name="Bad visibility" data-modifier-value="-3" />
+          <span>Dårlig sikt</span>
+          <strong>-3</strong>
+        </label>
+      </div>
+
+      <details class="details-block" open>
+        <summary>Situasjonsdata</summary>
+
+        <div class="form-grid">
+          <label class="field">
+            <span>Accuracy / Acc</span>
+            <input id="accuracyInput" type="number" step="1" value="0" />
+          </label>
+
+          <label class="field">
+            <span>SS / Bulk</span>
+            <input id="snapShotInput" type="number" step="1" value="0" />
+          </label>
+
+          <label class="field">
+            <span>Avstand</span>
+            <input
+              id="distanceInput"
+              type="number"
+              min="0"
+              step="1"
+              placeholder="F.eks. 20"
+            />
+          </label>
+
+          <label class="field">
+            <span>Hastighet</span>
+            <input
+              id="speedInput"
+              type="number"
+              min="0"
+              step="1"
+              placeholder="F.eks. 5"
+            />
+          </label>
+
+          <label class="field">
+            <span>Range/speed-mod</span>
+            <input id="rangeSpeedModifierInput" type="number" step="1" value="0" />
+          </label>
+
+          <label class="field">
+            <span>Egendefinert mod</span>
+            <input id="customModifierInput" type="number" step="1" value="0" />
+          </label>
+        </div>
+      </details>
+    </section>
+
+    <section class="panel result-panel" aria-labelledby="roll-heading">
+      <div class="panel-header">
+        <h2 id="roll-heading">Kast</h2>
+      </div>
+
+      <div class="target-number-card">
+        <span>Effektiv target number</span>
+        <strong id="effectiveTargetNumber">12</strong>
+      </div>
+
+      <div class="roll-actions">
+        <button id="rollButton" type="button" class="button button-primary button-large">
+          Kast 3d6
+        </button>
+
+        <button id="manualRollButton" type="button" class="button button-secondary">
+          Skriv inn kast
+        </button>
+      </div>
+
+      <div id="manualRollControls" class="manual-roll-controls" hidden>
+        <label class="field">
+          <span>Manuelt 3d6-resultat</span>
+          <input id="manualRollInput" type="number" min="3" max="18" step="1" />
+        </label>
+
+        <button id="applyManualRollButton" type="button" class="button button-primary">
+          Bruk resultat
+        </button>
+      </div>
+
+      <article id="rollResultCard" class="roll-result-card" aria-live="polite">
+        <p class="empty-state">Ingen kast ennå.</p>
+      </article>
+    </section>
+
+    <section class="panel" aria-labelledby="weapon-heading">
+      <div class="panel-header">
+        <h2 id="weapon-heading">Våpen og skade</h2>
+      </div>
+
+      <div class="form-grid">
+        <label class="field">
+          <span>Våpen</span>
+          <select id="weaponSelect">
+            <option value="">Velg våpen</option>
+          </select>
+        </label>
+
+        <label class="field">
+          <span>Skadeformel</span>
+          <input
+            id="damageFormulaInput"
+            type="text"
+            placeholder="F.eks. 1d+2 imp"
+            autocomplete="off"
+          />
+        </label>
+
+        <label class="field">
+          <span>Armor divisor</span>
+          <input id="armorDivisorInput" type="number" min="1" step="1" value="1" />
+        </label>
+
+        <label class="field">
+          <span>Damage type</span>
+          <select id="damageTypeSelect">
+            <option value="cr">cr</option>
+            <option value="cut">cut</option>
+            <option value="imp">imp</option>
+            <option value="pi-">pi-</option>
+            <option value="pi">pi</option>
+            <option value="pi+">pi+</option>
+            <option value="pi++">pi++</option>
+            <option value="burn">burn</option>
+            <option value="tox">tox</option>
+          </select>
+        </label>
+      </div>
+
+      <div class="roll-actions">
+        <button id="damageRollButton" type="button" class="button button-primary">
+          Kast skade
+        </button>
+      </div>
+
+      <article id="damageResultCard" class="damage-result-card" aria-live="polite">
+        <p class="empty-state">Skade blir tilgjengelig etter treff eller manuelt våpenvalg.</p>
+      </article>
+    </section>
+
+    <section class="panel log-panel" aria-labelledby="log-heading">
+      <div class="panel-header">
+        <h2 id="log-heading">Kastlogg</h2>
+
+        <button id="clearLogButton" type="button" class="button button-secondary">
+          Tøm logg
+        </button>
+      </div>
+
+      <ol id="rollLogList" class="roll-log-list"></ol>
+    </section>
+  </main>
+
+  <footer class="app-footer">
+    <p>
+      Laget for privat GURPS-spilling. Regler og tabeller bør kontrolleres mot egne bøker.
+    </p>
+  </footer>
+
+  <script src="app.js" defer></script>
+</body>
+</html>
+
+<!-- Slutt på fil: index.html | Versjon: 0.1.0 -->
