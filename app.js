@@ -1,15 +1,15 @@
 /*
   Fil: app.js
-  Formål: Interaktiv logikk for GURPS Dice Assistant: ferdigheter, modifikatorer, 3d6-kast, criticals, logg og skadekast.
-  Versjon: 0.1.0
+  Formål: Interaktiv logikk for GURPS Dice Assistant: ferdigheter, modifikatorer, 3d6-kast, criticals, logg, skadekast og animerte terninger.
+  Versjon: 0.2.0
 */
 
 (() => {
   "use strict";
 
   const STORAGE_KEYS = {
-    skills: "gurps-dice-assistant.skills.v0.1.0",
-    log: "gurps-dice-assistant.roll-log.v0.1.0"
+    skills: "gurps-dice-assistant.skills.v0.2.0",
+    log: "gurps-dice-assistant.roll-log.v0.2.0"
   };
 
   const DEFAULT_SKILLS = [
@@ -60,6 +60,15 @@
     1500, 2000, 3000, 5000, 7000, 10000,
     15000, 20000, 30000, 50000, 70000, 100000
   ];
+
+  const DIE_SYMBOLS = {
+    1: "⚀",
+    2: "⚁",
+    3: "⚂",
+    4: "⚃",
+    5: "⚄",
+    6: "⚅"
+  };
 
   const state = {
     skills: [],
@@ -159,9 +168,21 @@
       });
     });
 
-    dom.rollButton.addEventListener("click", () => {
-      const dice = rollDice(3);
-      resolveSkillRoll(dice);
+    dom.rollButton.addEventListener("click", async () => {
+      dom.rollButton.disabled = true;
+
+      try {
+        const dice = await animateDiceRoll({
+          count: 3,
+          container: dom.rollResultCard,
+          title: "Kaster 3d6 ...",
+          description: "Terningene ruller før resultatet avgjøres."
+        });
+
+        await resolveSkillRoll(dice);
+      } finally {
+        dom.rollButton.disabled = false;
+      }
     });
 
     dom.manualRollButton.addEventListener("click", () => {
@@ -171,7 +192,7 @@
       }
     });
 
-    dom.applyManualRollButton.addEventListener("click", () => {
+    dom.applyManualRollButton.addEventListener("click", async () => {
       const manualTotal = readNumber(dom.manualRollInput, NaN);
 
       if (!Number.isInteger(manualTotal) || manualTotal < 3 || manualTotal > 18) {
@@ -184,25 +205,46 @@
         return;
       }
 
-      resolveSkillRoll([manualTotal], { isManual: true });
+      await resolveSkillRoll([manualTotal], { isManual: true });
     });
 
     dom.weaponSelect.addEventListener("change", syncSelectedWeapon);
 
-    dom.damageRollButton.addEventListener("click", () => {
-      const damageResult = rollCurrentDamage();
+    dom.damageRollButton.addEventListener("click", async () => {
+      dom.damageRollButton.disabled = true;
 
-      if (!damageResult.ok) {
-        renderInlineMessage(dom.damageResultCard, "Kan ikke kaste skade", damageResult.message, "failure");
-        return;
+      try {
+        const damageDefinition = getCurrentDamageDefinition();
+
+        if (!damageDefinition.ok) {
+          renderInlineMessage(
+            dom.damageResultCard,
+            "Kan ikke kaste skade",
+            damageDefinition.message,
+            "failure"
+          );
+          return;
+        }
+
+        const dice = await animateDiceRoll({
+          count: damageDefinition.parsed.diceCount,
+          container: dom.damageResultCard,
+          title: "Kaster skade ...",
+          description: `Formel: ${damageDefinition.formula}`
+        });
+
+        const damageResult = rollDamageFromDefinition(damageDefinition, dice);
+
+        renderDamageResult(damageResult);
+
+        addLogEntry({
+          type: "damage",
+          title: `Skade: ${damageResult.total} ${damageResult.damageType}`,
+          details: `${damageResult.formula} → [${damageResult.dice.join(", ")}] ${formatSignedNumber(damageResult.flatModifier)}`
+        });
+      } finally {
+        dom.damageRollButton.disabled = false;
       }
-
-      renderDamageResult(damageResult);
-      addLogEntry({
-        type: "damage",
-        title: `Skade: ${damageResult.total} ${damageResult.damageType}`,
-        details: `${damageResult.formula} → [${damageResult.dice.join(", ")}] ${formatSignedNumber(damageResult.flatModifier)}`
-      });
     });
 
     dom.clearLogButton.addEventListener("click", () => {
@@ -416,7 +458,7 @@
     dom.effectiveTargetNumber.textContent = String(effectiveTarget);
   }
 
-  function resolveSkillRoll(dice, options = {}) {
+  async function resolveSkillRoll(dice, options = {}) {
     const total = sum(dice);
     const selectedSkill = getSelectedSkill();
     const skillName = selectedSkill?.name || "Ukjent skill";
@@ -448,23 +490,34 @@
     });
 
     if (rollData.rollType === "attack" && result.success) {
-      const damageResult = rollCurrentDamage();
+      const damageDefinition = getCurrentDamageDefinition();
 
-      if (damageResult.ok) {
-        renderDamageResult(damageResult, { automatic: true });
-        addLogEntry({
-          type: "damage",
-          title: `Automatisk skade: ${damageResult.total} ${damageResult.damageType}`,
-          details: `${damageResult.formula} → [${damageResult.dice.join(", ")}] ${formatSignedNumber(damageResult.flatModifier)}`
-        });
-      } else {
+      if (!damageDefinition.ok) {
         renderInlineMessage(
           dom.damageResultCard,
           "Treff registrert",
           "Velg våpen eller skriv inn skadeformel for å kaste skade.",
           "success"
         );
+        return;
       }
+
+      const damageDice = await animateDiceRoll({
+        count: damageDefinition.parsed.diceCount,
+        container: dom.damageResultCard,
+        title: "Treff! Kaster skade ...",
+        description: `Formel: ${damageDefinition.formula}`
+      });
+
+      const damageResult = rollDamageFromDefinition(damageDefinition, damageDice);
+
+      renderDamageResult(damageResult, { automatic: true });
+
+      addLogEntry({
+        type: "damage",
+        title: `Automatisk skade: ${damageResult.total} ${damageResult.damageType}`,
+        details: `${damageResult.formula} → [${damageResult.dice.join(", ")}] ${formatSignedNumber(damageResult.flatModifier)}`
+      });
     }
   }
 
@@ -550,6 +603,8 @@
       : `Terninger: ${rollData.dice.join(" + ")} = ${rollData.total}`;
 
     dom.rollResultCard.innerHTML = `
+      ${buildDiceRowHtml(rollData.dice, rollData.result.tone, { label: "Kastede terninger" })}
+
       <h3 class="result-title ${rollData.result.tone}">
         ${escapeHtml(rollData.result.label)}
       </h3>
@@ -569,7 +624,7 @@
         </li>
         <li>
           <span>Kast</span>
-          <strong>${diceText}</strong>
+          <strong>${escapeHtml(diceText)}</strong>
         </li>
         <li>
           <span>Margin</span>
@@ -596,7 +651,7 @@
     return `${rollData.result.label}. Kast: ${rollSource}. Basis ${rollData.baseSkillLevel}, modifikatorer: ${modifierText}.`;
   }
 
-  function rollCurrentDamage() {
+  function getCurrentDamageDefinition() {
     const formula = dom.damageFormulaInput.value.trim();
     const damageTypeFromSelect = dom.damageTypeSelect.value;
     const parsed = parseDamageFormula(formula);
@@ -608,21 +663,30 @@
       };
     }
 
-    const dice = rollDice(parsed.diceCount);
-    const rolledTotal = sum(dice);
-    const total = rolledTotal + parsed.flatModifier;
-    const damageType = parsed.damageType || damageTypeFromSelect;
-    const armorDivisor = Math.max(1, readNumber(dom.armorDivisorInput, 1));
-
     return {
       ok: true,
       formula,
+      parsed,
+      damageTypeFromSelect,
+      armorDivisor: Math.max(1, readNumber(dom.armorDivisorInput, 1))
+    };
+  }
+
+  function rollDamageFromDefinition(damageDefinition, providedDice = null) {
+    const dice = providedDice || rollDice(damageDefinition.parsed.diceCount);
+    const rolledTotal = sum(dice);
+    const total = rolledTotal + damageDefinition.parsed.flatModifier;
+    const damageType = damageDefinition.parsed.damageType || damageDefinition.damageTypeFromSelect;
+
+    return {
+      ok: true,
+      formula: damageDefinition.formula,
       dice,
       rolledTotal,
-      flatModifier: parsed.flatModifier,
+      flatModifier: damageDefinition.parsed.flatModifier,
       total,
       damageType,
-      armorDivisor
+      armorDivisor: damageDefinition.armorDivisor
     };
   }
 
@@ -660,6 +724,8 @@
     const title = options.automatic ? "Automatisk skade etter treff" : "Skaderesultat";
 
     dom.damageResultCard.innerHTML = `
+      ${buildDiceRowHtml(damageResult.dice, "success", { label: "Skadeterninger" })}
+
       <h3 class="result-title success">${title}</h3>
 
       <ul class="result-meta">
@@ -692,6 +758,159 @@
       <p class="result-comment">
         Husk å bruke DR, armor divisor, injury multiplier og hit location etter behov.
       </p>
+    `;
+  }
+
+  async function animateDiceRoll({ count, container, title, description }) {
+    const safeCount = Math.max(1, Math.min(20, count));
+    const frames = Math.max(8, Math.min(16, 6 + safeCount));
+    const frameDelay = 70;
+
+    for (let frame = 0; frame < frames; frame += 1) {
+      const frameDice = Array.from({ length: safeCount }, () => randomDieValue());
+
+      renderRollingDiceFrame(container, frameDice, {
+        title,
+        description,
+        frame,
+        frames
+      });
+
+      await wait(frameDelay + frame * 8);
+    }
+
+    const finalDice = rollDice(safeCount);
+
+    renderRollingDiceFrame(container, finalDice, {
+      title: "Resultat klart",
+      description: "Terningene har landet.",
+      frame: frames,
+      frames
+    });
+
+    await wait(120);
+
+    return finalDice;
+  }
+
+  function renderRollingDiceFrame(container, dice, options = {}) {
+    const progressPercent = options.frames > 0
+      ? Math.round((Math.min(options.frame + 1, options.frames) / options.frames) * 100)
+      : 100;
+
+    container.innerHTML = `
+      <div style="display:grid; gap:0.85rem;">
+        <div style="display:flex; justify-content:space-between; align-items:center; gap:0.75rem; flex-wrap:wrap;">
+          <h3 class="result-title warning" style="margin:0;">${escapeHtml(options.title || "Kaster terninger ...")}</h3>
+          <span style="
+            display:inline-flex;
+            align-items:center;
+            justify-content:center;
+            min-width:4rem;
+            padding:0.3rem 0.7rem;
+            border-radius:999px;
+            background:#f3f4f6;
+            border:1px solid #d1d5db;
+            font-weight:800;
+            color:#374151;
+            font-size:0.85rem;
+          ">${progressPercent}%</span>
+        </div>
+
+        ${buildDiceRowHtml(dice, "warning", { animated: true, label: "Rullende terninger" })}
+
+        <div style="
+          width:100%;
+          height:0.55rem;
+          background:#e5e7eb;
+          border-radius:999px;
+          overflow:hidden;
+        ">
+          <div style="
+            width:${progressPercent}%;
+            height:100%;
+            background:linear-gradient(90deg, #b91c1c, #f59e0b);
+            border-radius:999px;
+            transition:width 90ms linear;
+          "></div>
+        </div>
+
+        <p class="result-comment" style="margin:0;">
+          ${escapeHtml(options.description || "Terningene ruller ...")}
+        </p>
+      </div>
+    `;
+  }
+
+  function buildDiceRowHtml(dice, tone = "neutral", options = {}) {
+    const palette = {
+      neutral: {
+        border: "#d1d5db",
+        bg: "#f9fafb",
+        color: "#111827",
+        glow: "rgba(17, 24, 39, 0.12)"
+      },
+      success: {
+        border: "#10b981",
+        bg: "#ecfdf5",
+        color: "#065f46",
+        glow: "rgba(16, 185, 129, 0.18)"
+      },
+      failure: {
+        border: "#ef4444",
+        bg: "#fef2f2",
+        color: "#991b1b",
+        glow: "rgba(239, 68, 68, 0.18)"
+      },
+      warning: {
+        border: "#f59e0b",
+        bg: "#fffbeb",
+        color: "#92400e",
+        glow: "rgba(245, 158, 11, 0.18)"
+      }
+    };
+
+    const selectedPalette = palette[tone] || palette.neutral;
+    const animated = Boolean(options.animated);
+
+    const diceHtml = dice
+      .map((value, index) => {
+        const rotate = animated ? ((index % 2 === 0 ? -1 : 1) * (6 + Math.floor(Math.random() * 10))) : 0;
+        const scale = animated ? (1 + Math.random() * 0.06) : 1;
+        const translateY = animated ? (-2 + Math.floor(Math.random() * 6)) : 0;
+
+        return `
+          <div style="
+            width:3.35rem;
+            height:3.35rem;
+            display:flex;
+            align-items:center;
+            justify-content:center;
+            border-radius:0.9rem;
+            border:2px solid ${selectedPalette.border};
+            background:${selectedPalette.bg};
+            color:${selectedPalette.color};
+            box-shadow:0 8px 22px ${selectedPalette.glow};
+            font-size:2rem;
+            font-weight:900;
+            user-select:none;
+            transform:rotate(${rotate}deg) scale(${scale}) translateY(${translateY}px);
+            transition:transform 90ms linear;
+          ">${DIE_SYMBOLS[value] || "?"}</div>
+        `;
+      })
+      .join("");
+
+    const total = dice.length > 1 ? `<div style="font-weight:800; color:#6b7280;">Sum: ${sum(dice)}</div>` : "";
+
+    return `
+      <div style="display:grid; gap:0.65rem; margin-bottom:1rem;">
+        ${options.label ? `<div style="font-size:0.85rem; font-weight:800; color:#6b7280;">${escapeHtml(options.label)}</div>` : ""}
+        <div style="display:flex; flex-wrap:wrap; gap:0.65rem; align-items:center;">
+          ${diceHtml}
+        </div>
+        ${total}
+      </div>
     `;
   }
 
@@ -774,11 +993,21 @@
   }
 
   function rollDice(count) {
-    return Array.from({ length: count }, () => Math.floor(Math.random() * 6) + 1);
+    return Array.from({ length: count }, () => randomDieValue());
+  }
+
+  function randomDieValue() {
+    return Math.floor(Math.random() * 6) + 1;
   }
 
   function sum(numbers) {
     return numbers.reduce((acc, number) => acc + number, 0);
+  }
+
+  function wait(ms) {
+    return new Promise((resolve) => {
+      window.setTimeout(resolve, ms);
+    });
   }
 
   function readNumber(input, fallbackValue) {
@@ -818,4 +1047,4 @@
   init();
 })();
 
-/* Slutt på fil: app.js | Versjon: 0.1.0 */
+/* Slutt på fil: app.js | Versjon: 0.2.0 */
